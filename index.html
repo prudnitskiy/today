@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Work Day Progress</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e8eaed;
+            font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+            padding: 1.5rem;
+        }
+
+        .window {
+            background: #f2f2f2;
+            border: 1px solid #b0b0b0;
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .title-bar {
+            background: #0a246a;
+            color: #ffffff;
+            padding: 4px 8px;
+            font-weight: bold;
+            border-bottom: 1px solid #b0b0b0;
+            font-size: 14px;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title-bar-btn {
+            background: #e0e0e0;
+            border: 1px solid #888;
+            color: #000;
+            font-family: inherit;
+            font-size: 11px;
+            padding: 1px 8px;
+            cursor: pointer;
+            line-height: 1.5;
+        }
+        .title-bar-btn:hover { background: #d4d4d4; }
+        .title-bar-btn:active { background: #c0c0c0; }
+
+        .window-body { padding: 12px 16px 16px 16px; }
+
+        .time-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #000;
+            margin-bottom: 4px;
+        }
+
+        .progress-track {
+            position: relative;
+            width: 100%;
+            height: 28px;
+            background: #d0d0d0;
+            border: 1px solid #888;
+            margin: 6px 0 8px 0;
+            overflow: visible;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: #3b6bb5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: width 0.15s linear;
+            min-width: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .progress-fill .percent-text {
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            transition: opacity 0.2s;
+        }
+
+        .progress-fill.low-width .percent-text { opacity: 0; }
+
+        .progress-marker {
+            position: absolute;
+            top: -1px;
+            left: 0%;
+            width: 2px;
+            height: calc(100% + 2px);
+            background: #cc0000;
+            z-index: 10;
+            pointer-events: none;
+            transition: left 0.15s linear;
+            overflow: visible;
+        }
+
+        .progress-marker.green-marker { background: #00aa00; z-index: 11; }
+
+        .marker-triangle-bottom {
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 10px solid #cc0000;
+        }
+
+        .marker-triangle-top {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 10px solid #00aa00;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #000;
+            margin: 8px 0 12px 0;
+            padding: 0 4px;
+        }
+        .stats .value { font-weight: bold; }
+
+        .task-section {
+            border-top: 1px solid #c0c0c0;
+            padding-top: 10px;
+            margin-top: 4px;
+        }
+
+        .task-toolbar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: #e0e0e0;
+            border: 1px solid #888;
+            color: #000;
+            font-family: inherit;
+            font-size: 12px;
+            padding: 3px 10px;
+            cursor: pointer;
+            line-height: 1.4;
+        }
+        .btn:hover { background: #d4d4d4; }
+        .btn:active { background: #c0c0c0; }
+        .btn.active { background: #b8cce4; border-color: #4a6a8a; }
+
+        .task-list {
+            list-style: none;
+            border: 1px solid #888;
+            background: #ffffff;
+            min-height: 90px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 8px;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            font-size: 12px;
+            border-bottom: 1px solid #e8e8e8;
+            gap: 8px;
+        }
+        .task-item:last-child { border-bottom: none; }
+
+        .task-item input[type="checkbox"] {
+            width: 14px; height: 14px; margin: 0;
+            cursor: pointer; flex-shrink: 0;
+            accent-color: #3b6bb5;
+        }
+
+        .task-item .task-text {
+            flex: 1;
+            cursor: text;
+            word-break: break-word;
+            line-height: 1.35;
+            padding: 1px 2px;
+            min-width: 0;
+        }
+        .task-item .task-text:hover { background: #f0f4fa; }
+        .task-item.done .task-text {
+            text-decoration: line-through;
+            color: #888;
+        }
+
+        .task-item .task-edit-input {
+            flex: 1;
+            border: 1px solid #3b6bb5;
+            background: #ffffff;
+            font-family: inherit;
+            font-size: 12px;
+            padding: 1px 4px;
+            color: #000;
+            outline: none;
+            min-width: 0;
+        }
+
+        .task-empty {
+            padding: 8px;
+            font-size: 12px;
+            color: #888;
+            font-style: italic;
+        }
+
+        .add-row { display: flex; gap: 4px; }
+
+        .add-row input[type="text"] {
+            flex: 1;
+            border: 1px solid #888;
+            background: #ffffff;
+            font-family: inherit;
+            font-size: 12px;
+            padding: 4px 6px;
+            color: #000;
+            outline: none;
+        }
+        .add-row input[type="text"]:focus { border-color: #3b6bb5; }
+
+        /* ---------- Settings modal ---------- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 100;
+        }
+        .modal-overlay.open { display: flex; }
+
+        .modal-window {
+            background: #f2f2f2;
+            border: 1px solid #b0b0b0;
+            width: 100%;
+            max-width: 380px;
+            font-size: 12px;
+        }
+
+        .modal-title-bar {
+            background: #0a246a;
+            color: #ffffff;
+            padding: 4px 8px;
+            font-weight: bold;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .modal-close {
+            background: #e0e0e0;
+            border: 1px solid #888;
+            color: #000;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 11px;
+            width: 18px;
+            height: 18px;
+            line-height: 14px;
+            text-align: center;
+            cursor: pointer;
+            padding: 0;
+        }
+        .modal-close:hover { background: #d4d4d4; }
+        .modal-close:active { background: #c0c0c0; }
+
+        .modal-body { padding: 14px 16px 10px 16px; }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 10px;
+        }
+
+        .form-row > label:first-child {
+            width: 100px;
+            flex-shrink: 0;
+            font-size: 12px;
+            color: #000;
+        }
+
+        .form-row input[type="time"] {
+            border: 1px solid #888;
+            background: #ffffff;
+            font-family: inherit;
+            font-size: 12px;
+            padding: 3px 6px;
+            color: #000;
+            outline: none;
+            width: 120px;
+        }
+        .form-row input[type="time"]:focus { border-color: #3b6bb5; }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .radio-group input[type="radio"] {
+            margin: 0;
+            cursor: pointer;
+            accent-color: #3b6bb5;
+        }
+
+        .modal-error {
+            color: #cc0000;
+            font-size: 11px;
+            min-height: 14px;
+            margin-bottom: 6px;
+        }
+
+        .modal-footer {
+            padding: 8px 16px 14px 16px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+        }
+
+        .modal-footer .btn {
+            min-width: 70px;
+            padding: 4px 12px;
+        }
+
+        @media (max-width: 480px) {
+            .window-body { padding: 8px 10px 12px 10px; }
+            .progress-track { height: 24px; }
+            .progress-fill .percent-text { font-size: 11px; }
+            .stats { font-size: 12px; flex-direction: column; align-items: flex-start; gap: 2px; }
+            .btn { font-size: 11px; padding: 3px 7px; }
+            .form-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+            .form-row > label:first-child { width: auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="window" role="main" aria-label="Work day progress">
+
+        <div class="title-bar">
+            <span>Work Day Progress</span>
+            <button class="title-bar-btn" id="settingsBtn" type="button" title="Open settings">Settings</button>
+        </div>
+
+        <div class="window-body">
+
+            <div class="time-labels">
+                <span id="startLabel">9:00 AM</span>
+                <span id="endLabel">6:00 PM</span>
+            </div>
+
+            <div class="progress-track" aria-hidden="true">
+                <div class="progress-fill" id="progressFill">
+                    <span class="percent-text" id="percentInside">0%</span>
+                </div>
+                <div class="progress-marker" id="progressMarkerRed" style="left: 0%;">
+                    <div class="marker-triangle-bottom"></div>
+                </div>
+                <div class="progress-marker green-marker" id="progressMarkerGreen" style="left: 0%;">
+                    <div class="marker-triangle-top"></div>
+                </div>
+            </div>
+
+            <div class="stats">
+                <span>Elapsed: <span class="value" id="elapsedDisplay">0h 0m</span></span>
+                <span>Remaining: <span class="value" id="remainingDisplay">9h 0m</span></span>
+            </div>
+
+            <div class="task-section">
+                <div class="task-toolbar">
+                    <button class="btn" id="filterBtn" type="button">Show all</button>
+                    <button class="btn" id="clearBtn" type="button">Clear completed</button>
+                    <span style="flex:1"></span>
+                    <span style="font-size:12px;color:#666;" id="taskCount"></span>
+                </div>
+
+                <ul class="task-list" id="taskList"></ul>
+
+                <div class="add-row">
+                    <input type="text" id="newTaskInput" placeholder="Add a task..." maxlength="120" />
+                    <button class="btn" id="addBtn" type="button">Add</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ---------- Settings dialog ---------- -->
+    <div class="modal-overlay" id="settingsOverlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="modal-window">
+            <div class="modal-title-bar">
+                <span id="settingsTitle">Settings</span>
+                <button class="modal-close" id="settingsX" type="button" aria-label="Close">X</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <label for="startTimeInput">Start of day:</label>
+                    <input type="time" id="startTimeInput" value="09:00" step="60" />
+                </div>
+                <div class="form-row">
+                    <label for="endTimeInput">End of day:</label>
+                    <input type="time" id="endTimeInput" value="18:00" step="60" />
+                </div>
+                <div class="form-row">
+                    <label>Default view:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="defaultView" value="open" id="viewOpen" />
+                            Show open only
+                        </label>
+                        <label>
+                            <input type="radio" name="defaultView" value="all" id="viewAll" />
+                            Show all
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-error" id="settingsError"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="settingsOk" type="button">OK</button>
+                <button class="btn" id="settingsCancel" type="button">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            /* ============================================================
+             *  UTILITIES
+             * ============================================================ */
+
+            function clamp(v, min, max) {
+                return Math.min(Math.max(v, min), max);
+            }
+
+            function pad(n) {
+                return String(n).padStart(2, '0');
+            }
+
+            function formatDuration(minutes) {
+                if (minutes < 0) minutes = 0;
+                const h = Math.floor(minutes / 60);
+                const m = Math.round(minutes % 60);
+                return h + 'h ' + m + 'm';
+            }
+
+            function formatTimeShort(h, m) {
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                const h12 = h % 12 || 12;
+                return h12 + ':' + pad(m) + ' ' + ampm;
+            }
+
+            /* ============================================================
+             *  UNIFIED STATE  (tasks + settings in one object)
+             * ============================================================ */
+
+            const STATE_KEY = 'workday-state-v1';
+
+            // Legacy keys – migrated once, then removed.
+            const LEGACY_TASKS_KEY = 'workday-tasks-v1';
+            const LEGACY_SETTINGS_KEY = 'workday-settings-v1';
+
+            function getDefaultState() {
+                return {
+                    tasks: [
+                        { id: 1, text: 'Review the morning emails', done: false },
+                        { id: 2, text: 'Prepare the weekly report', done: false },
+                        { id: 3, text: 'Team stand-up meeting', done: true }
+                    ],
+                    nextId: 4,
+                    settings: {
+                        startHour: 9,
+                        startMinute: 0,
+                        endHour: 18,
+                        endMinute: 0,
+                        defaultShowAll: false
+                    }
+                };
+            }
+
+            // Validate and normalise a raw settings object.
+            function sanitizeSettings(raw) {
+                const defaults = getDefaultState().settings;
+                const s = { ...defaults, ...(raw || {}) };
+
+                s.startHour   = clamp(parseInt(s.startHour, 10)   || 0, 0, 23);
+                s.startMinute = clamp(parseInt(s.startMinute, 10) || 0, 0, 59);
+                s.endHour     = clamp(parseInt(s.endHour, 10)     || 0, 0, 23);
+                s.endMinute   = clamp(parseInt(s.endMinute, 10)   || 0, 0, 59);
+                s.defaultShowAll = !!s.defaultShowAll;
+
+                if ((s.endHour * 60 + s.endMinute) <= (s.startHour * 60 + s.startMinute)) {
+                    return { ...defaults };
+                }
+                return s;
+            }
+
+            // Validate and normalise the task list + nextId.
+            function sanitizeTasks(rawTasks, rawNextId) {
+                const list = Array.isArray(rawTasks) ? rawTasks : [];
+                const cleaned = list
+                    .filter(t => t && typeof t.text === 'string')
+                    .map(t => ({
+                        id: Number(t.id) || 0,
+                        text: t.text,
+                        done: !!t.done
+                    }));
+
+                const maxId = cleaned.reduce((m, t) => Math.max(m, t.id), 0);
+                const nextId = Math.max(Number(rawNextId) || 0, maxId + 1);
+
+                return { tasks: cleaned, nextId };
+            }
+
+            // Attempt to read the unified state from localStorage.
+            // Returns a normalised state object or null if nothing valid is stored.
+            function readState() {
+                try {
+                    const raw = localStorage.getItem(STATE_KEY);
+                    if (raw) {
+                        const data = JSON.parse(raw);
+                        if (data && typeof data === 'object') {
+                            const { tasks, nextId } = sanitizeTasks(data.tasks, data.nextId);
+                            const settings = sanitizeSettings(data.settings);
+                            return { tasks, nextId, settings };
+                        }
+                    }
+
+                    // --- One-time migration from legacy keys ---
+                    const legacyTasksRaw = localStorage.getItem(LEGACY_TASKS_KEY);
+                    const legacySettingsRaw = localStorage.getItem(LEGACY_SETTINGS_KEY);
+                    if (legacyTasksRaw || legacySettingsRaw) {
+                        let migratedTasks = null;
+                        let migratedSettings = null;
+                        try {
+                            if (legacyTasksRaw) {
+                                const d = JSON.parse(legacyTasksRaw);
+                                migratedTasks = sanitizeTasks(d && d.tasks, d && d.nextId);
+                            }
+                        } catch (e) { /* ignore */ }
+                        try {
+                            if (legacySettingsRaw) {
+                                migratedSettings = sanitizeSettings(JSON.parse(legacySettingsRaw));
+                            }
+                        } catch (e) { /* ignore */ }
+
+                        const fallback = getDefaultState();
+                        const migrated = {
+                            tasks: migratedTasks ? migratedTasks.tasks : fallback.tasks,
+                            nextId: migratedTasks ? migratedTasks.nextId : fallback.nextId,
+                            settings: migratedSettings || fallback.settings
+                        };
+
+                        // Persist the migrated state and clean up legacy keys.
+                        try {
+                            localStorage.setItem(STATE_KEY, JSON.stringify(migrated));
+                            localStorage.removeItem(LEGACY_TASKS_KEY);
+                            localStorage.removeItem(LEGACY_SETTINGS_KEY);
+                        } catch (e) { /* ignore */ }
+
+                        return migrated;
+                    }
+                } catch (e) {
+                    console.warn('Could not read state from localStorage:', e);
+                }
+                return null;
+            }
+
+            // Write the entire state object back to localStorage.
+            function writeState() {
+                try {
+                    localStorage.setItem(STATE_KEY, JSON.stringify({
+                        tasks: state.tasks,
+                        nextId: state.nextId,
+                        settings: state.settings
+                    }));
+                } catch (e) {
+                    console.warn('Could not save state to localStorage:', e);
+                }
+            }
+
+            // ---- Boot: single source of truth ----
+            const state = readState() || getDefaultState();
+
+            // Convenience aliases for readability
+            const settings = state.settings;
+
+            /* ============================================================
+             *  PROGRESS BAR LOGIC
+             * ============================================================ */
+
+            const progressFill = document.getElementById('progressFill');
+            const percentInside = document.getElementById('percentInside');
+            const elapsedDisplay = document.getElementById('elapsedDisplay');
+            const remainingDisplay = document.getElementById('remainingDisplay');
+            const progressMarkerRed = document.getElementById('progressMarkerRed');
+            const progressMarkerGreen = document.getElementById('progressMarkerGreen');
+            const startLabel = document.getElementById('startLabel');
+            const endLabel = document.getElementById('endLabel');
+
+            function getStartTotal() { return settings.startHour * 60 + settings.startMinute; }
+            function getEndTotal()   { return settings.endHour * 60 + settings.endMinute; }
+            function getDayLength()  { return getEndTotal() - getStartTotal(); }
+
+            function getProgress() {
+                const now = new Date();
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                return clamp((currentMinutes - getStartTotal()) / getDayLength(), 0, 1);
+            }
+
+            function getCurrentMinutes() {
+                const now = new Date();
+                return now.getHours() * 60 + now.getMinutes();
+            }
+
+            function updateTimeLabels() {
+                startLabel.textContent = formatTimeShort(settings.startHour, settings.startMinute);
+                endLabel.textContent   = formatTimeShort(settings.endHour, settings.endMinute);
+            }
+
+            function updateProgress() {
+                const progress = getProgress();
+                const percent = Math.round(progress * 100);
+                const currentMinutes = getCurrentMinutes();
+
+                const widthPercent = percent + '%';
+                progressFill.style.width = widthPercent;
+
+                if (percent < 12) {
+                    progressFill.classList.add('low-width');
+                } else {
+                    progressFill.classList.remove('low-width');
+                }
+
+                percentInside.textContent = percent + '%';
+                progressMarkerRed.style.left = widthPercent;
+
+                let elapsed = currentMinutes - getStartTotal();
+                let remaining = getEndTotal() - currentMinutes;
+                if (elapsed < 0) elapsed = 0;
+                if (remaining < 0) remaining = 0;
+
+                elapsedDisplay.textContent = formatDuration(elapsed);
+                remainingDisplay.textContent = formatDuration(remaining);
+            }
+
+            /* ============================================================
+             *  TASK LIST LOGIC
+             * ============================================================ */
+
+            let showAll = settings.defaultShowAll; // runtime-only filter state
+            let editingId = null;
+
+            const taskListEl   = document.getElementById('taskList');
+            const filterBtn    = document.getElementById('filterBtn');
+            const clearBtn     = document.getElementById('clearBtn');
+            const addBtn       = document.getElementById('addBtn');
+            const newTaskInput = document.getElementById('newTaskInput');
+            const taskCountEl  = document.getElementById('taskCount');
+
+            function updateGreenMarker() {
+                let pct = 0;
+                if (state.tasks.length > 0) {
+                    const done = state.tasks.filter(t => t.done).length;
+                    pct = (done / state.tasks.length) * 100;
+                }
+                progressMarkerGreen.style.left = pct + '%';
+            }
+
+            function startEdit(id) { editingId = id; renderTasks(); }
+
+            function commitEdit(id, newText) {
+                const t = state.tasks.find(t => t.id === id);
+                if (t) {
+                    const trimmed = newText.trim();
+                    if (trimmed && trimmed !== t.text) {
+                        t.text = trimmed;
+                        writeState();   // <-- single unified save
+                    }
+                }
+                editingId = null;
+                renderTasks();
+            }
+
+            function cancelEdit() { editingId = null; renderTasks(); }
+
+            function renderTasks() {
+                const visible = showAll ? state.tasks : state.tasks.filter(t => !t.done);
+
+                taskListEl.innerHTML = '';
+
+                if (visible.length === 0) {
+                    const li = document.createElement('li');
+                    li.className = 'task-empty';
+                    li.textContent = showAll
+                        ? 'No tasks yet. Add one below.'
+                        : 'No open tasks. Good job!';
+                    taskListEl.appendChild(li);
+                } else {
+                    visible.forEach(task => {
+                        const li = document.createElement('li');
+                        li.className = 'task-item' + (task.done ? ' done' : '');
+
+                        const cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        cb.checked = task.done;
+                        cb.title = 'Mark as ' + (task.done ? 'open' : 'done');
+                        cb.addEventListener('change', () => toggleTask(task.id));
+                        cb.addEventListener('click', (e) => e.stopPropagation());
+                        li.appendChild(cb);
+
+                        if (editingId === task.id) {
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.className = 'task-edit-input';
+                            input.value = task.text;
+                            input.maxLength = 120;
+
+                            input.addEventListener('keydown', (e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    commitEdit(task.id, input.value);
+                                } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    cancelEdit();
+                                }
+                            });
+
+                            input.addEventListener('blur', () => {
+                                if (editingId === task.id) {
+                                    commitEdit(task.id, input.value);
+                                }
+                            });
+
+                            li.appendChild(input);
+                        } else {
+                            const span = document.createElement('span');
+                            span.className = 'task-text';
+                            span.textContent = task.text;
+                            span.title = 'Click to edit';
+                            span.addEventListener('click', () => startEdit(task.id));
+                            li.appendChild(span);
+                        }
+
+                        taskListEl.appendChild(li);
+                    });
+                }
+
+                if (editingId !== null) {
+                    const editInput = taskListEl.querySelector('.task-edit-input');
+                    if (editInput) {
+                        editInput.focus();
+                        const len = editInput.value.length;
+                        editInput.setSelectionRange(len, len);
+                    }
+                }
+
+                filterBtn.textContent = showAll ? 'Show open only' : 'Show all';
+                filterBtn.classList.toggle('active', showAll);
+
+                const openCount = state.tasks.filter(t => !t.done).length;
+                const doneCount = state.tasks.length - openCount;
+                taskCountEl.textContent = `${openCount} open · ${doneCount} done`;
+
+                updateGreenMarker();
+            }
+
+            function toggleTask(id) {
+                const t = state.tasks.find(t => t.id === id);
+                if (t) {
+                    t.done = !t.done;
+                    if (editingId === id) editingId = null;
+                    writeState();
+                    renderTasks();
+                }
+            }
+
+            function addTask() {
+                const text = newTaskInput.value.trim();
+                if (!text) return;
+                state.tasks.push({ id: state.nextId++, text: text, done: false });
+                newTaskInput.value = '';
+                newTaskInput.focus();
+                writeState();
+                renderTasks();
+            }
+
+            function clearCompleted() {
+                state.tasks = state.tasks.filter(t => !t.done);
+                if (editingId !== null && !state.tasks.some(t => t.id === editingId)) {
+                    editingId = null;
+                }
+                writeState();
+                renderTasks();
+            }
+
+            function toggleFilter() {
+                showAll = !showAll;
+                if (editingId !== null) {
+                    const stillVisible = showAll || !state.tasks.find(t => t.id === editingId)?.done;
+                    if (!stillVisible) editingId = null;
+                }
+                renderTasks();
+            }
+
+            filterBtn.addEventListener('click', toggleFilter);
+            clearBtn.addEventListener('click', clearCompleted);
+            addBtn.addEventListener('click', addTask);
+
+            newTaskInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTask();
+                }
+            });
+
+            // Cross‑tab sync: reload the full state when another tab writes it.
+            window.addEventListener('storage', (e) => {
+                if (e.key !== STATE_KEY) return;
+                const fresh = readState();
+                if (!fresh) return;
+                state.tasks = fresh.tasks;
+                state.nextId = fresh.nextId;
+                state.settings = fresh.settings;
+                editingId = null;
+                updateTimeLabels();
+                updateProgress();
+                renderTasks();
+            });
+
+            /* ============================================================
+             *  SETTINGS MODAL
+             * ============================================================ */
+
+            const settingsBtn = document.getElementById('settingsBtn');
+            const overlay = document.getElementById('settingsOverlay');
+            const settingsX = document.getElementById('settingsX');
+            const settingsOk = document.getElementById('settingsOk');
+            const settingsCancel = document.getElementById('settingsCancel');
+            const startTimeInput = document.getElementById('startTimeInput');
+            const endTimeInput = document.getElementById('endTimeInput');
+            const viewOpen = document.getElementById('viewOpen');
+            const viewAll = document.getElementById('viewAll');
+            const settingsError = document.getElementById('settingsError');
+
+            function openSettings() {
+                startTimeInput.value = pad(settings.startHour) + ':' + pad(settings.startMinute);
+                endTimeInput.value   = pad(settings.endHour)   + ':' + pad(settings.endMinute);
+                viewAll.checked = settings.defaultShowAll;
+                viewOpen.checked = !settings.defaultShowAll;
+                settingsError.textContent = '';
+                overlay.classList.add('open');
+            }
+
+            function closeSettings() {
+                overlay.classList.remove('open');
+                settingsError.textContent = '';
+            }
+
+            function parseTime(str) {
+                if (!str || typeof str !== 'string') return null;
+                const m = /^(\d{1,2}):(\d{2})$/.exec(str.trim());
+                if (!m) return null;
+                const h = parseInt(m[1], 10);
+                const min = parseInt(m[2], 10);
+                if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+                return { h: h, m: min };
+            }
+
+            function applySettings() {
+                const start = parseTime(startTimeInput.value);
+                const end   = parseTime(endTimeInput.value);
+
+                if (!start || !end) {
+                    settingsError.textContent = 'Please enter valid times.';
+                    return;
+                }
+
+                const startTotal = start.h * 60 + start.m;
+                const endTotal   = end.h * 60 + end.m;
+
+                if (endTotal <= startTotal) {
+                    settingsError.textContent = 'End of day must be after start of day.';
+                    return;
+                }
+
+                settings.startHour   = start.h;
+                settings.startMinute = start.m;
+                settings.endHour     = end.h;
+                settings.endMinute   = end.m;
+                settings.defaultShowAll = viewAll.checked;
+
+                // Persist the entire state (tasks + settings) in one go.
+                writeState();
+
+                updateTimeLabels();
+                updateProgress();
+                closeSettings();
+            }
+
+            settingsBtn.addEventListener('click', openSettings);
+            settingsX.addEventListener('click', closeSettings);
+            settingsCancel.addEventListener('click', closeSettings);
+            settingsOk.addEventListener('click', applySettings);
+
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeSettings();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && overlay.classList.contains('open')) {
+                    closeSettings();
+                }
+            });
+
+            [startTimeInput, endTimeInput].forEach(el => {
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        applySettings();
+                    }
+                });
+            });
+
+            /* ============================================================
+             *  BOOT
+             * ============================================================ */
+
+            updateTimeLabels();
+            updateProgress();
+            renderTasks();
+
+            // Persist the initial state on very first visit so the storage
+            // key exists even before the user touches anything.
+            writeState();
+
+            setInterval(updateProgress, 1000);
+
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) updateProgress();
+            });
+
+        })();
+    </script>
+
+</body>
+</html>
